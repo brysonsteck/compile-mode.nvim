@@ -7,8 +7,14 @@ local compile_mode = require("compile-mode")
 ---@return boolean is_valid
 ---@return string error_message
 local function validate(tbl)
-	local ok, err = pcall(vim.validate, tbl)
-	return ok or false, "invalid config" .. (err and (": " .. err) or "")
+	local ok = vim.iter(tbl):all(function(name, test)
+		local ok, err = pcall(vim.validate, name, unpack(test))
+		if not ok then
+			return false, "invalid config" .. (err and (": " .. err) or "")
+		end
+		return ok
+	end)
+	return ok or false, "invalid config: unknown error"
 end
 
 ---@param value unknown
@@ -100,17 +106,22 @@ local function validate_error_regexp_table(value)
 					err_msg = group .. " expected table or false, got " .. type(matcher)
 					return false
 				end
-
-				local ok, err = pcall(vim.validate, {
+				local validate_table = {
 					regex = validate_regex(matcher, "regex", "_rx"),
 					filename = { matcher.filename, "number" },
 					row = { matcher.row, { "number", "table" }, true },
 					col = { matcher.col, { "number", "table" }, true },
 					type = { matcher.type, { "number", "table" }, true },
-				})
-				if not ok then
-					err_msg = group .. "." .. err
-				end
+				}
+
+				local ok = vim.iter(validate_table):all(function(name, test)
+					local ok, err = pcall(vim.validate, name, unpack(test))
+					if not ok then
+						err_msg = group .. "." .. err .. test
+					end
+					return ok
+				end)
+
 				return ok
 			end)
 
@@ -135,14 +146,19 @@ local function validate_directory_matcher_list(value)
 					return false
 				end
 
-				local ok, err = pcall(vim.validate, {
+				local validate_table = {
 					regex = validate_regex(matcher, "regex", "_rx"),
 					filename = { matcher.filename, "number" },
 					leaving = { matcher.filename, "number", true },
-				})
-				if not ok then
-					err_msg = err
-				end
+				}
+
+				local ok = vim.iter(validate_table):all(function(name, test)
+					local ok, err = pcall(vim.validate, name, unpack(test))
+					if not ok then
+						err_msg = group .. "." .. err .. test
+					end
+					return ok
+				end)
 
 				return ok
 			end)
